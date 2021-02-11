@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<meta charset='utf-8'>
+<head>
+  <title> Airbnb During COVID-19: An Improved Lodging Planner for Austin</title>
+
+  <script type="text/javascript" src="lib/d3.v5.min.js"></script>
+  <script type="text/javascript" src="lib/d3-dsv.min.js"></script>
+  <script type="text/javascript" src="lib/d3-geo-projection.v2.min.js"></script>
+  <script type="text/javascript" src="lib/d3-legend.min.js"></script>
+  <script type="text/javascript" src="lib/d3-tip.min.js"></script>
+  <script type="text/javascript" src="lib/topojson.v2.min.js"></script>
+
+  <style>
+      body{
+         font-family: "Lucida Sans Unicode", "Lucida Grande", sans-serif;
+           }
+     .selectionDiv{width: 260px; height: 100px;}
+
+     div#select_dates{
+         float:left;
+         position: relative;
+         left: 50px;
+     }
+     h1 {
+         position: relative;
+         left: 50px;
+     }
+      p {
+         position: relative;
+         left: 50px;
+     }
+     div#select_choropleth{
+         float:left;
+         position: relative;
+         left: 200px;
+     }
+     div#mainDiv{
+         width:1900px;
+         height:700px;
+         float:left;
+         position: relative;
+         left: 50px;
+     }
+     .mapDiv{width: 1000px; height: 700px; float:left;
+         border:2px solid #cccccc;}
+     .detailInfoDiv{width:850px; height:700px; float:right;}
+     .line {
+         fill: none;
+         stroke: #ffab00;
+         stroke-width: 3;
+     }
+  </style>
+</head>
+
+<body>
+  <!-- header and dropdown -->
+  <h1 style = "font_size:25px;"> Airbnb During COVID-19: An Improved Lodging Planner for Austin</h1>
+  <p style = "line-height:1.5;"> Airbnb has grown rapidly over the past decade as part of the emerging sharing economy. Studies suggest that location is one of the primary concerns when a tourist chooses to stay with Airbnb and thus an important reference for pricing strategy of the hosts. The consideration of location becomes more complicated in 2020, during the outbreak of COVID-19.
+      In response to the pandemic, people in the country are adjusting their life out of safety concerns. When they travel, possible exposure to the virus of COVID-19 is now on the top of other concerns like time and budget. </p>
+
+  <p style = "line-height:1.5">The goal of our project is to improve the current use of Airbnb website in order to reflect and forecast the trend of COVID-19 in certain travelling destinations for the upcoming holiday season in late 2020.
+      Targeting both the travelers and the hosts (property owners) as users, these statistics and predictions will be combined with the Airbnb rental information to help them make informed decisions about their plans and strategies.
+      Specifically, it will help travelers better plan their trips when purchasing lodgings and help hosts wisely adjust the pricing strategies for their properties.  </p>
+
+  <!--dates input: https://developer.mozilla.org/en-US/docs/Web/HTML/Element/input/date-->
+<div class="selectionDiv" id="select_dates">
+     <h3> Choose Your Travel Date * </h3>
+  <form id = "date" onsubmit = "return false;">
+  <label style="margin: 0; display: inline;">
+      <input id=chosen_date type="date" name="party" min="2020-10-01" max="2020-12-31" required>
+      <span class="validity"></span>
+   </label>
+   <p style="margin: 0; display: inline;" align="right">
+      <button type = "submit" onclick="getChosenDate();">Submit</button> </p>
+  </form>
+</div>
+
+<div class="selectionDiv" id="select_choropleth">
+    <h3> Color map by * </h3>
+    <select id = "choropleth_options">
+      <option value="COVID" selected="selected">COVID-19 prediction (default)</option>
+      <option value="recommendation">Comprehensive Recommendation</option>
+    </select>
+</div>
+
+  <div class = "mainDiv" id = "mainDiv">
+    <div class = "mapDiv" id = "choropleth"></div>
+    <div class = "detailInfoDiv" id = "detail_info"></div>
+  </div>
+
+  <script>
+  // global variables
+  // Main map svg
+  var margin = {top: 50, right: 50, bottom: 50, left: 50};
+  var width = 1000;
+  var height = 700;
+
+  var svg_main = d3.select("div#choropleth").append("svg")
+                   .attr("width", width).attr("height", height);
+  var svg_city = svg_main.attr("class", "neighbourhoods")
+                 .attr("width", width).attr("height", height);
+  var svg_stat = d3.select("div#detail_info").append("svg")
+                   .attr("width", 420).attr("height", 350);
+  var svg_trend = d3.select("div#detail_info").append("svg")
+                    .attr("width", 420).attr("height", 350);
+  var svg_listing = d3.select("div#detail_info").append("svg")
+                    .attr("width", 850).attr("height", 345);
+
+
+  var chosen_mapping_option;
+  var date_selected;
+
+  var prediction_list = [];
+
+  var parseTime = d3.timeParse("%Y-%m-%d");
+  var formatTime = d3.timeFormat("%-m/%-d/%Y");
+
+  var projection = d3.geoAlbers().scale(73000).rotate([97.7431, 0])
+        .center([0, 30.2672]).translate([width/2, height/2 + 40])
+        //.fitSize([width, height], city);
+  var geoPath = d3.geoPath().projection(projection);
+
+  //var projection_points = d3.geo.mercator();
+
+
+  // store chosen_date
+  function getChosenDate(){
+    date_selected = formatTime(parseTime(document.getElementById("chosen_date").value));
+    //console.log("date_selected", date_selected);
+    start_process();
+  }
+
+function start_process(){
+  // import data
+  Promise.all([
+    d3.json("neighbourhoods.geojson"),
+    d3.dsv(",", "price_availability_neighborhood.csv"),
+    d3.dsv(",", "prediction.csv"),
+    d3.dsv(",", "classification.csv"),
+    d3.dsv(",", "listings.csv")]).then(
+     function(files) {ready(null, files[0], files[1], files[2], files[3],files[4])}
+  );
+
+  function ready(error, city, price_availability, covid_prediction, recommendation_index, listing){
+    // console log datas for reference
+        console.log(city);
+        console.log(covid_prediction);
+        console.log(recommendation_index);
+        console.log(listing)
+
+    // get all zipcodes and create zipcode dropdown and event listener
+      var zip_code_list = [];
+      city.features.forEach((d)=>{
+         zip_code_list.push(d.properties.neighbourhood);
+      });
+      zip_code_list.sort();
+      d3.select("#zipcode_options").selectAll("options")
+        .data(zip_code_list).enter().append("option")
+        .attr("value", (d) => {return d;})
+        .text((d) => {return d;});
+      d3.select("#zipcode_options").on("change",(d)=>{
+        let sect2 = document.getElementById("zipcode_options");
+        var chosen_neighbourhood = sect2.options[sect2.selectedIndex].value;
+        highlight_neighbourhood(chosen_neighbourhood);
+      })
+
+      // call function to create map according to COVID prediction (default) and date selected
+      createMapAndLegend(chosen_mapping_option, date_selected);
+
+      // call function to create new map if recommendation chosen
+      d3.select("#choropleth_options").on("change", () =>{
+        let sect1 = document.getElementById("choropleth_options");
+        chosen_mapping_option = sect1.options[sect1.selectedIndex].value;
+        //console.log(chosen_mapping_option, date_selected);
+        removeOldColor();
+        createMapAndLegend(chosen_mapping_option, date_selected);
+      })
+
+// create map and legends according to the choropleth option and date chosen by user
+function createMapAndLegend(chosen_mapping_option, date_selected){
+      // combine neighbourhood location, price & Availability, prediction, classification
+      city.features.forEach((d)=>{
+        price_availability.forEach((c)=>{
+          if (d.properties.neighbourhood == c.neighbourhood){
+            d.price = c.price_night
+            d.availability = c.listings_w_high_availability;}
+        });
+        covid_prediction.forEach((c)=>{
+          if (d.properties.neighbourhood == c.Zipcode.substring(4)){
+            var date_string = date_selected + " 5:00";
+            d.prediction = Math.floor(+c[date_string]);
+            prediction_list.push(Math.floor(+c[date_string]));
+          }
+          });
+        recommendation_index.forEach((v)=>{
+          if (d.properties.neighbourhood == v.Zipcode){
+            var date_string = date_selected + " 5:00";
+            d.recommendation = +v[date_string];
+          }
+          });
+        });
+
+      // tooltip
+      var tip = d3.tip()
+          .attr("class", "tooltip")
+          .style("background-color", "gray")
+          //.offset([-1, -1])
+          .html((d)=>{
+            return "<a><strong style='color:white'>Neighbourhood:</strong> <span style='color:white'>"
+              + d.properties.neighbourhood + "</span></a></br>" +
+              "<a><strong style='color:white'>Average Price/Night: $</strong> <span style='color:white'>"
+                  + d.price + "</span></a></br>" +
+              "<a><strong style='color:white'>Listings with High Availability:</strong> <span style='color:white'>"
+                    + d.availability + "%</span></a></br>" +
+              "<a><strong style='color:white'>Risk of COVID-19 Exposure:</strong> <span style='color:white'>"
+                    + d.prediction + "</span></a></br>" +
+              "<a><strong style='color:white'>Recommendation Rate:</strong> <span style='color:white'>"
+                    + d.recommendation + "</span></a></br>" +
+              "<a><span style='color:white'> * Click neighbourhood to see detail information.</span></a></br>"
+          });
+      svg_city.call(tip);
+
+      // remove old color if existed
+      removeOldColor();
+      // color scale and definition
+      var colorScale_prediction = d3.scaleQuantile();
+      colorScale_prediction.domain(prediction_list)
+             .range(['#d5c9f2','#aaaffa','#816ccc','#88419d']);
+      var colorScale_recommendation = d3.scaleOrdinal();
+      colorScale_recommendation.domain([3,2,1,0])
+              .range(['#2171b5','#6baed6','#bdd7e7','#dae0f2']);
+
+    // create choropleth of city, color by COVID-19 prediction by default
+    // Main map - choropleth
+    var g = svg_city.append("g");
+
+    g.selectAll("path")
+            .data(city.features).enter().append("path")
+            .attr("id", (d)=>{return d.properties.neighbourhood;})
+            .attr('d', geoPath)
+            .style("fill", (d)=>{
+              if(chosen_mapping_option == "recommendation"){
+              return colorScale_recommendation(d.recommendation);}
+              else {return colorScale_prediction(d.prediction);}  })
+            .style("stroke", "white")
+            .on("mouseover", tip.show)
+            .on("mouseout", tip.hide)
+            .on("mousemove", function(d,i){
+                  d3.select(this).style("stroke", "yellow");})
+            .on("mouseleave", function(d,i){
+                  d3.select(this).style("stroke", "white");})
+            // more visualization when neighbourhood clicked
+            .on("click", function(d,i){
+                d3.selectAll("path")
+                  // .style("fill", (d)=>{
+                  //     console.log(d.recommendation);
+                  //    if(chosen_mapping_option == "recommendation"){
+                  //       return colorScale_recommendation(d.recommendation);}
+                  //   else {return colorScale_prediction(d.prediction);}  })
+                  .transition().style("opacity", 0.6);
+                d3.select(this).style("stroke", "yellow")
+                  .transition().style("opacity",1);})
+                  .exit();
+
+            // display legends
+              var legend = d3.legendColor();
+              if(chosen_mapping_option == "recommendation"){
+                  legend.scale(colorScale_recommendation)
+                          .title("Recommendation Rate")
+                  ;}
+              else {
+                  legend.scale(colorScale_prediction)
+                      .labelFormat(d3.format(".0f")).title("# COVID-19 cases")
+                  ;}
+              g.append("g")
+                  .attr("class", "legend")
+                  .attr("transform", "translate(750,500)")
+                  .call(legend);
+
+          // add explanation for recommendation index
+          if (chosen_mapping_option == "recommendation"){
+            g.append("text").attr("x",30).attr("y",690).attr("font-size","12px")
+                    .attr("text_anchor", "left")
+                    .text("*Recommendation index is evaluated by COVID-19 risk, crime rate, population density and housing-unit availability comprehensively.");
+            g.append("text").attr("x",790).attr("y",529).attr("font-size","13px").text("Highly Recommended");
+            g.append("text").attr("x",790).attr("y",549).attr("font-size","13px").text("Recommended");
+            g.append("text").attr("x",790).attr("y",569).attr("font-size","13px").text("Acceptable");
+            g.append("text").attr("x",790).attr("y",589).attr("font-size","13px").text("Not Recommended");
+          }
+
+    //Plot listings on the map
+    g.selectAll("circle")
+        .data(listing).enter()
+        .append("circle")
+        .attr("cx", function (d) {return projection([d.longitude, d.latitude])[0]; })
+		.attr("cy", function (d) {return projection([d.longitude, d.latitude])[1]; })
+		.attr("r", "1px")
+		.attr("fill", "yellow")
+        .on("click", function(d,i){
+            d3.selectAll("circle")
+                .style("fill", "yellow")
+                .style("r","1px")
+                .transition().style("opacity", 0.6);
+            d3.select(this)
+                .style("fill", "red")
+                .style("r", "4px")
+                .transition().style("opacity", 1);
+            show_listing_info(d);
+
+            })
+        .exit();
+
+    //show info for the selected listing
+    function show_listing_info(chosen_house){
+        var g = svg_listing.append("g")
+
+        g.append("rect").attr("width", 820)
+            .attr("height", 350)
+            .style("fill", "white")
+            .style("stroke", "gray");
+
+        g.append("text")
+            .text(chosen_house.name)
+            .style("fill", "black")
+            .attr("x", 50).attr("y",60)
+            .style("font-weight", "bold")
+            .style("font-size", "20px")
+            .style("font-family", "Maven Pro")
+
+        g.append("circle")
+            .attr("r", "5px")
+            .attr("fill", "#5c2ea8")
+            .attr("cx",50).attr("cy",115)
+
+        g.append("text")
+            .text("Host: " + chosen_house.host_name)
+            .style("fill", "black")
+            .attr("x", 70).attr("y",120)
+
+        g.append("circle")
+            .attr("r", "5px")
+            .attr("fill", "#5c2ea8")
+            .attr("cx",50).attr("cy",155)
+
+        g.append("text")
+            .text("Room Type: " + chosen_house.room_type)
+            .style("fill", "black")
+            .attr("x", 70).attr("y",160)
+
+        g.append("circle")
+            .attr("r", "5px")
+            .attr("fill", "#5c2ea8")
+            .attr("cx",50).attr("cy",195)
+
+        g.append("text")
+            .text("Price: $ " + chosen_house.price)
+            .style("fill", "black")
+            .attr("x", 70).attr("y",200)
+
+        g.append("circle")
+            .attr("r", "5px")
+            .attr("fill", "#5c2ea8")
+            .attr("cx",50).attr("cy",235)
+
+        g.append("text")
+            .text("Minimum Stay: " + chosen_house.minimum_nights + " Nights")
+            .style("fill", "black")
+            .attr("x", 70).attr("y",240)
+
+        g.append("circle")
+            .attr("r", "5px")
+            .attr("fill", "#5c2ea8")
+            .attr("cx",50).attr("cy",275)
+
+        g.append("text")
+            .text(chosen_house.number_of_reviews + " Reviews")
+            .style("fill", "black")
+            .attr("x", 70).attr("y",280)
+    }
+
+    // Zoom the map
+    var zoom = d3.zoom().on("zoom", function(){
+        g.attr("transform", d3.event.transform);
+        // g.selectAll("circle")
+        //     .attr("d", path.projection(projection))
+    });
+    svg_city.call(zoom);
+    //////////////////////////////////// Boxplot chart starts from here.....///////////////////////////////////////////////////
+
+  //  console.log('data you can read starting from this...')
+  //  console.log('date_selected:', date_selected);
+  //  console.log('covid_prediction:', covid_prediction);
+
+    //store 10 days before date_selected and 10 days after date_selected
+    var date_selected_1 = new Date(date_selected);
+    var day_prior = 10;
+    date_selected_1.setDate(date_selected_1.getDate() - day_prior);
+    let date_selected_b4 = (date_selected_1.getMonth() + 1) + "/" + date_selected_1.getDate() + "/" + date_selected_1.getFullYear()
+
+    var date_selected_2 = new Date(date_selected);
+    date_selected_2.setDate(date_selected_2.getDate() + day_prior);
+    let date_selected_after = (date_selected_2.getMonth() + 1) + "/" + date_selected_2.getDate() + "/" + date_selected_2.getFullYear()
+
+    // console.log("date_selected_b4: ",date_selected_b4)
+    // console.log("date_selected_after: ",date_selected_after)
+
+   //create a list to store the covid cases for all zip codes in the date_selected
+   var covid_list = []
+   covid_prediction.forEach((c)=>{
+            var date_string = date_selected + " 5:00";
+            covid_list.push(Math.floor(+c[date_string]));
+          });
+
+    // compute summary statistics used for the box:
+   var covid_list_sorted = covid_list.sort(d3.ascending)
+   var q1_now = d3.quantile(covid_list_sorted,0.25)
+   var median_now = d3.quantile(covid_list_sorted, .5)
+   var q3_now = d3.quantile(covid_list_sorted, .75)
+   var interQuantileRange_now = q3_now - q1_now
+   var min_now = q1_now - 1.5 * interQuantileRange_now
+   var max_now = q1_now + 1.5 * interQuantileRange_now
+
+    // this is used for caluculating the range for y scale
+   var min_now_e = d3.min(covid_list_sorted)
+   var max_now_e = d3.max(covid_list_sorted)
+   var r0 = Math.min(min_now*0.85,min_now_e*0.85)
+   var r1 = Math.min(max_now*1.15,max_now_e*1.15)
+//    console.log("r0",r0)
+//    console.log("r1",r1)
+
+
+   //create a list to store the covid cases for all zip codes in the date_selected_b4
+   var covid_list_b4 = []
+   covid_prediction.forEach((c)=>{
+            var date_string = date_selected_b4 + " 5:00";
+            covid_list_b4.push(Math.floor(+c[date_string]));
+          });
+
+    // compute summary statistics used for the box:
+   var covid_list_sorted_b4 = covid_list_b4.sort(d3.ascending)
+   var q1_b4 = d3.quantile(covid_list_sorted_b4,0.25)
+   var median_b4 = d3.quantile(covid_list_sorted_b4, .5)
+   var q3_b4 = d3.quantile(covid_list_sorted_b4, .75)
+   var interQuantileRange_b4 = q3_b4 - q1_b4
+   var min_b4 = q1_b4 - 1.5 * interQuantileRange_b4
+   var max_b4 = q1_b4 + 1.5 * interQuantileRange_b4
+
+   //create a list to store the covid cases for all zip codes in the date_selected_after
+   var covid_list_after = []
+   covid_prediction.forEach((c)=>{
+            var date_string = date_selected_after + " 5:00";
+            covid_list_after.push(Math.floor(+c[date_string]));
+          });
+
+    // compute summary statistics used for the box:
+   var covid_list_sorted_after = covid_list_after.sort(d3.ascending)
+   var q1_after = d3.quantile(covid_list_sorted_after,0.25)
+   var median_after = d3.quantile(covid_list_sorted_after, .5)
+   var q3_after = d3.quantile(covid_list_sorted_after, .75)
+   var interQuantileRange_after = q3_after - q1_after
+   var min_after = q1_after - 1.5 * interQuantileRange_after
+   var max_after = q1_after + 1.5 * interQuantileRange_after
+
+   // group the statistics for graphign the boxplot into a nest array
+   let boxplot_stat = [{'date':date_selected_b4,'min':min_b4,'max':max_b4,'q1':q1_b4,'q3':q3_b4,'median':median_b4,'interQuantileRange':interQuantileRange_b4},
+   {'date':date_selected,'min':min_now,'max':max_now,'q1':q1_now,'q3':q3_now,'median':median_now,'interQuantileRange':interQuantileRange_now},
+   {'date':date_selected_after,'min':min_after,'max':max_after,'q1':q1_after,'q3':q3_after,'median':median_after,'interQuantileRange':interQuantileRange_after}]
+
+   var boxplot_stat_nest = d3.nest()
+                            .key(function(d){return d.date;})
+                            .entries(boxplot_stat)
+
+
+    // console.log('boxplot_stat',boxplot_stat)
+    // console.log('boxplot_stat_nest',boxplot_stat_nest)
+
+    // Define xScale
+    var x = d3.scaleBand()
+                    .range([0,350])
+                    .domain([date_selected_b4, date_selected,date_selected_after])
+                    .paddingInner(1)
+                    .paddingOuter(0.5)
+
+    svg_stat.append("g")
+            .attr("transform", "translate(50,260)")
+            .style("font-size", "13px")
+            .style("font-weight","bold")
+            .call(d3.axisBottom(x))
+
+    // Define yScale
+    var y = d3.scaleLinear()
+                .domain([r0, r1]).nice()
+                .range([250,0]);
+
+    svg_stat.append("g")
+            .attr("transform", "translate(50,25)")
+            .style("font-size", "13px")
+            .style("font-weight","bold")
+            .call(d3.axisLeft(y))
+
+
+    // // show the main vertical line
+    svg_stat.selectAll("vertLines")
+            .data(boxplot_stat_nest)
+            .enter()
+            .append("line")
+            .attr("x1", function(d){return(x(d.key))})
+            .attr("x2", function(d){return(x(d.key))})
+            .attr("y1",function(d){return(y(d.values[0].min))})
+            .attr("y2", function(d){return(y(d.values[0].max))})
+            .attr("stroke", "black")
+            .attr("transform", "translate(50,10)")
+            .style("width", 40)
+
+     // rectangle for the main box
+    var boxWidth = 60
+    svg_stat.selectAll("boxes")
+            .data(boxplot_stat_nest)
+            .enter()
+            .append("rect")
+            .attr("x", function(d){return(x(d.key)-boxWidth/2)})
+            .attr("y", function(d){return(y(d.values[0].q3))})
+            .attr("height", function(d){return(y(d.values[0].q1)-y(d.values[0].q3))})
+            .attr("transform", "translate(50,10)")
+            .attr("width", boxWidth )
+            .attr("stroke", "black")
+            .style("fill", "#69b3a2")
+
+    // // // show median, min and max horizontal lines
+    svg_stat.selectAll("medianLines")
+            .data(boxplot_stat_nest)
+            .enter()
+            .append("line")
+            .attr("x1", function(d){return(x(d.key)-boxWidth/2) })
+            .attr("x2", function(d){return(x(d.key)+boxWidth/2) })
+            .attr("y1", function(d){return(y(d.values[0].median))})
+            .attr("y2", function(d){return(y(d.values[0].median))})
+            .attr("transform", "translate(50,10)")
+            .attr("stroke", "black")
+            .style("width", 80)
+
+    // // add title
+    svg_stat.append("text")
+        .attr("x", 160 )
+        .attr("y", 0)
+        .attr("transform", "translate(50,20)")
+        .style("font-weight","bold")
+        .style("text-anchor", "middle")
+        .style("font-size", "14px")
+        .text("Boxplot for Covid cases prediction");
+
+    // add axis labels
+    svg_stat.append("text")
+        .attr("x", -8)
+        .attr("y", 3)
+        .attr("transform", "translate(50,10)")
+        .style("font-size", "13px")
+        .style("font-weight","bold")
+        .style("text-anchor", "middle")
+        .text("# cases");
+
+    svg_stat.append("text")
+            .attr('x', 225)
+            .attr('y', 300)
+            // .attr("transform", "translate(50,10)")
+            .style("font-size", "13px")
+            .style("font-weight","bold")
+            .style("text-anchor", "middle")
+            .text("Date");
+
+    //////////////////////////////////// Boxplot chart end.....///////////////////////////////////////////////////
+
+    /////////////////////////////////// Trend line chart starts from here.....///////////////////////////////////////////////////
+  //  var day_prior_t = 20;
+
+   var date_selected_t = new Date(date_selected);
+   date_selected_t.setDate(date_selected_t.getDate());
+   let date_selected_tnow = (date_selected_t.getMonth() + 1) + "/" + date_selected_t.getDate() + "/" + date_selected_t.getFullYear();
+
+   var date_selected_t2 = new Date(date_selected);
+   date_selected_t2.setDate(date_selected_t2.getDate() + day_prior);
+   let date_selected_tafter = (date_selected_t2.getMonth() + 1) + "/" + date_selected_t2.getDate() + "/" + date_selected_t2.getFullYear();
+
+
+
+    var dataset = [];
+    var times = [];
+    var n = day_prior;
+    var cur_date = new Date(date_selected);
+    for (i = 0; i < n; i++) {
+      times.push(cur_date);
+      var total_cases = 0;
+      for (j = 0; j < covid_prediction.length; j++){
+       // console.log(covid_prediction[j]);
+      //  var date_string = cur_date.toString();
+        var date_string = [cur_date.getMonth(), '/', cur_date.getDate(), '/', cur_date.getFullYear()].join("") + " 5:00";
+       // console.log(date_string);
+        var cases = +covid_prediction[j][date_string];
+        if (isNaN(cases)){cases = 0};
+        // console.log(cases);
+        total_cases = total_cases + cases;
+      };
+    //  console.log(total_cases);
+      dataset.push({
+        "y": total_cases
+      });
+      cur_date = new Date(cur_date.getTime() + 60 * 60 * 24 * 1000);
+    }
+
+    // console.log(dataset);
+    // console.log(times);
+
+
+      // X scale
+   var xScale = d3.scaleTime()
+                   .domain([new Date(date_selected_tnow), new Date(date_selected_tafter)]) // input
+                   .range([0, 380]); // output
+
+
+  // Y scale
+    // this is used for caluculating the range for y scale
+  var min_now_et = d3.min(dataset)
+  var max_now_et = d3.max(dataset)
+  var r0t = Math.min(min_now*0.85,min_now_et*0.85)
+
+
+  var yScale = d3.scaleLinear()
+                  .domain([1000, 150000])
+                  .range([250, 0]); // output
+
+
+  var line = d3.line()
+      .x(function(d, i) { return xScale(times[i]); }) // set the x values for the line generator
+      .y(function(d) { return yScale(d.y); }); // set the y values for the line generator
+   //   .curve(d3.curveMonotoneX); // apply smoothing to the line
+
+  // 3. Call the x axis in a group tag
+    svg_trend.append("g")
+      .attr("class", "x axis")
+      .attr("transform", "translate(50,260)")
+      .call(d3.axisBottom(xScale) // Create an axis component with d3.axisBottom
+      .tickFormat(d3.timeFormat('%m/%d')))
+      .style("font-size", "11px")
+      .style("font-weight","bold");
+
+  // 4. Call the y axis in a group tag
+    svg_trend.append("g")
+      .attr("class", "y axis")
+      .attr("transform", "translate(50,10)")
+      .call(d3.axisLeft(yScale)
+      .ticks(10))
+      .style("font-size", "11px")
+      .style("font-weight","bold");
+
+   // Create an axis component with d3.
+    svg_trend.append("path")
+     .datum(dataset) // 10. Binds data to the line
+     .attr("class", "line") // Assign a class for styling
+     .attr("d", line) // 11. Calls the line generator
+     .attr("transform", "translate(50,10)")
+     .style('stroke', '#4E79A7');
+
+
+  // // Add the text label for X Axis
+  //   svg_trend.append('text').attr('x', 210).attr('y', 300).attr('text-anchor', 'middle').text('Date');
+
+  // // Add the text label for Y axis
+  //   svg_trend.append('text').attr('x', 210).attr('y', 30).attr('text-anchor', 'middle').text('Number of positive cases');
+
+
+// // add title
+    svg_trend.append("text")
+            .attr("x", 160 )
+            .attr("y", 0)
+            .attr("transform", "translate(65,15)")
+            .style("font-weight","bold")
+            .style("text-anchor", "middle")
+            .style("font-size", "14px")
+            .text("Trends for Covid cases for next 10 days");
+
+    // // add axis labels
+    svg_trend.append("text")
+              .attr("x", -5)
+              .attr("y", -2)
+              .attr("transform", "translate(50,10)")
+              .style("font-size", "12px")
+              .style("font-weight","bold")
+              .style("text-anchor", "middle")
+              .text("# cases");
+
+    svg_trend.append("text")
+            .attr('x', 225)
+            .attr('y', 300)
+            // .attr("transform", "translate(50,10)")
+            .style("font-size", "13px")
+            .style("font-weight","bold")
+            .style("text-anchor", "middle")
+            .text("Date");
+
+/////////////////////////////////// Trend line chart end.....///////////////////////////////////////////////////
+
+
+   }
+
+    // highlight_neighbourhood
+    function highlight_neighbourhood(chosen_neighbourhood){
+      city.features.forEach((d)=>{
+        if (d.properties.neighbourhood == chosen_neighbourhood){
+          //console.log(d);
+          svg_city.select("#neighbourhoods").select("#"+chosen_neighbourhood)
+             .append("path")
+             .enter().data(d)
+             .attr("d",geoPath)
+             .style("fill", "red");
+        }
+      });
+    }
+
+
+
+    // remove and update map of city (according to coloring option chosen)
+    function removeOldColor(){
+      svg_city.selectAll('*').remove();
+      svg_stat.selectAll('*').remove();
+      svg_trend.selectAll('*').remove();
+    }
+
+    // remove and update detail information
+    function removeOldDetails(){
+       svg_stat.selectAll('*').remove();
+       svg_trend.selectAll('*').remove();
+    }
+
+
+
+
+
+
+
+
+
+    }
+}
+  </script>
+
+</body>
+</html>
