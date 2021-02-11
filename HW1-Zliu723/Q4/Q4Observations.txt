@@ -1,0 +1,13 @@
+c.i rows: 47
+
+c.ii columns: 5
+
+c.iii function: ngram-fingerprint, 120
+
+c.iv GREL_brand_name:if(value==null,"Unknown",value)
+
+c.v GREL_price: value.toNumber()
+    GREL_high_priced: if(value.toNumber>90,1,0)
+
+c.vi    GREL_item_description:value.toLowercase()
+        GREL_ has_offer: if(or(value.contains('discount'),value.contains('offer'),value.contains('sale')),1,0)

@@ -1,0 +1,6 @@
+1. What is the main reason to use a random forest versus a decision tree? (<= 50 words)
+Random forest can help minimize errors caused by bias and variance. It can also help reduce overfitting.
+2. How long did your random forest take to run? (in seconds)
+Execution time: 0:00:04.624587
+3. What accuracy (to two decimal places, xx.xx%) were you able to obtain?
+accuracy:73.66%

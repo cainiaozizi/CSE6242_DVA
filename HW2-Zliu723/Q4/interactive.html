@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<head>
+  <title>Games Rating: 2015 - 2019</title>
+  <meta charset="utf-8">
+  <script type="text/javascript" src="../lib/d3.v5.min.js"></script>
+  <script type="text/javascript" src="../lib/d3-dsv.min.js"></script>
+</head>
+
+<style type="text/css">
+
+  h3 {
+    position: absolute;
+    left: 380px;
+    top:  50px;
+  }
+  .line {
+      fill: none;
+      stroke: #ffab00;
+      stroke-width: 3;
+  }
+    
+  .overlay {
+    fill: none;
+    pointer-events: all;
+  }
+  
+  .dot {
+      fill: #ffab00;
+      stroke: #fff;
+  }
+    
+    .focus circle {
+    fill: none;
+    stroke: steelblue;
+  }
+
+</style>
+<h3>GT Username: Zliu723</h3>
+<body>
+
+<div id="container"></div>
+
+<script>
+var dataset = []
+//var parseTime = d3.timeParse("%Y");
+//var formatTime = d3.timeFormat("%Y");
+
+var margin = {top: 50, right: 50, bottom: 50, left: 50}
+  , width = 960 - margin.left - margin.right 
+  , height = 600 - margin.top - margin.bottom; 
+
+//Load the data
+d3.dsv(",", "average-rating.csv").then(function(data){
+
+  data.forEach(function(d) {  
+      d.name = d.name;
+      d.year = d.year;
+      d.average_rating = Math.floor(d.average_rating);
+      d.users_rated =  d.users_rated;
+  })
+  // console.log(data)
+  function compare_by_year( a, b ) {
+    if ( a.year < b.year ){
+      return -1;
+    }
+    if ( a.year > b.year ){
+      return 1;
+    }
+    return 0;
+  }
+  data.sort(compare_by_year); //sort by year
+  original_data = data;
+  myArray = data.filter(function( obj ) {
+    return obj.year >= "2015" && obj.year <= "2019";
+});
+  data = myArray;
+
+  function compare_by_rating( a, b ) {
+    if ( a.average_rating < b.average_rating ){
+      return -1;
+    }
+    if ( a.average_rating > b.average_rating ){
+      return 1;
+    }
+    return 0;
+  }
+  data.sort(compare_by_rating);
+  // console.log(data);
+
+  //Prepare for line
+  var game_year = d3.map(data,function(d){ return d.year}).keys();
+  
+
+  //Prepare for y axis
+  var game_count = d3.nest().key(function(d) {return d.year})
+                   .key(function(d) {return d.average_rating})
+                   .rollup(function(d) {return d3.sum(d, function(g) {return 1})})
+                   .entries(data);
+
+  function compare_by_key( a, b ) {
+    if ( a.key < b.key ){
+      return -1;
+    }
+    if ( a.key > b.key ){
+      return 1;
+    }
+    return 0;
+  }
+  game_count.sort(compare_by_key);
+
+// Create X and Y Scale
+  var xScale = d3.scaleLinear()
+      .domain([d3.min(data, function(d) {return d.average_rating; }),d3.max(data, function(d) {return d.average_rating; })])
+      .range([50, width-50]);
+
+  var yScale = d3.scaleLinear()
+      .domain([d3.min(game_count, function(d) {return d3.min(d.values, function(c) {return c.value})})
+      , d3.max(game_count, function(d) {return d3.max(d.values, function(c) {return c.value})})])  
+      .range([height-50, 50]);
+
+// Create X and Y axis
+  var xAxis = d3.axisBottom(xScale).ticks(10);
+
+  var yAxis = d3.axisLeft(yScale).ticks(10);
+
+//define lines
+  var line = d3.line()
+      .x(function(d) { return xScale(d.key); }) 
+      .y(function(d) { return yScale(d.value); });
+
+// prepare for svg
+  var svg1 = d3.select("body").append("svg")
+      .attr("width", width + margin.left + margin.right)
+      .attr("height", height + margin.top + margin.bottom)
+      .append("g")
+      .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+  var svg2 = d3.select("body").append("svg")
+      .attr("width", width + margin.left + margin.right)
+      .attr("height", height + margin.top + margin.bottom)
+      .append("g")
+      .attr("transform", "translate(" + margin.left + "," + margin.top + ")");  
+
+// add title
+  svg1.append("text")
+      .attr("x", width/ 2 )
+      .attr("y", 0)
+      .style("font-weight","bold")
+      .style("text-anchor", "middle")
+      .style("font-size", "25px")
+      .text("Board games by Rating 2015-2019");
+
+// add axis
+  svg1.append("g").attr("class", "x axis").attr("transform", "translate(0," + (height-50) + ")").call(xAxis);
+  svg1.append("g").attr("class", "y axis").attr("transform", "translate(" + 50 + ",0)").call(yAxis);
+
+// add axis labels
+  svg1.append("text").attr("x", -height/2).attr("y", 0).attr("transform", "rotate(-90)")
+          .style("font-size", "20px").style("font-weight","bold")
+          .style("text-anchor", "middle").text("Count");
+    
+  svg1.append("text").attr("x", width/2).attr("y", height)
+        .style("font-size", "20px").style("font-weight","bold")
+        .style("text-anchor", "middle").text("Average Rating");
+
+
+// add line
+var color = ["red", "yellow", "blue", "green","purple"];
+
+for(var i=0; i < game_count.length; i++) {
+    svg1.append("path").datum(game_count[i].values).attr("class", "line").style("stroke", color[i]).attr("d", line); 
+}
+
+// add legend
+for (var i=0; i < game_count.length; i++) {
+    svg1.append("rect").attr("x",width-50).attr("y",30*i).attr("width", 20).attr("height", 20).style("fill", color[i])
+    svg1.append("text").attr("x", width-20).attr("y", 10+30*i).text(game_count[i].key)
+        .style("font-size", "15px").style("font-weight","bold").attr("alignment-baseline","middle")
+}
+
+// add node
+var r = 5;
+for(var i=0; i < game_count.length; i++) {
+    svg1.selectAll("circle" + i).data(game_count[i].values).enter().append("circle")  
+    .attr("cx", function(d) {return xScale(d.key)})
+    .attr("cy", function(d) {return yScale(d.value)})
+    .attr("r", r)
+    .attr("fill", color[i])
+    .attr("whichYear",i)
+    .attr("whichRating", function(d){return d.key})
+    .on("mouseover", displayBar)  
+    .on("mouseout", clearBar);
+
+}
+/////////////////////// Q4 c to f ////////////////////
+
+function displayBar(){
+  d3.select(this).attr("r", 2*r)
+  var thisRating = d3.select(this).attr("whichRating");
+  var thisYear = game_count[d3.select(this).attr("whichYear")].key;
+  thisData = data.filter(function(d) {return d.average_rating == thisRating & d.year == thisYear});
+  thisNum = thisData.length; //"the top 5" in my example
+
+  //console.log('thisRating:',thisRating);
+  //console.log('thisYear:',thisYear)
+  //console.log('thisData:',thisData)
+
+
+  // add title
+  svg2.append("text").attr("x", width/2).attr("y", 0)
+    .style("font-weight","bold")
+    .style("text-anchor", "middle")
+    .style("font-size", "25px")
+    .text( "Top 5 Most Rated Games for Year " + thisYear + " with Rating " + thisRating);
+
+  // add axis labels
+  svg2.append("text").attr("x", -height/2).attr("y", -20).attr("transform", "rotate(-90)")
+      .style("font-size", "20px").style("font-weight","bold")
+      .style("text-anchor", "middle").text("Number of users");
+    
+  svg2.append("text").attr("x", width/2).attr("y", height)
+        .style("font-size", "20px").style("font-weight","bold")
+        .style("text-anchor", "middle").text("Games");
+  
+  
+  // sort data based on user_rated 
+  thisData.sort(function(a,b) {
+        return d3.ascending(parseInt(a.users_rated), parseInt(b.users_rated)) ;
+    })
+
+  // and limit game name within 10 characters
+  for(i = 0; i < thisData.length; i++){
+    thisData[i].name= thisData[i].name.substring(0,10)};
+  
+  // select the top 5 games based on user_rated
+  var thisData5 = thisData.slice(thisNum-5,thisNum)
+  console.log('thisData top 5:',thisData5)
+  console.log('thisData5[0].users_rated:',thisData5[0].users_rated)
+  
+  // define scale and add axis
+  var xScale2 = d3.scaleLinear().domain([0, thisData5[4].users_rated]).range([0, width-50])
+  var yScale2 = d3.scaleBand().domain(thisData5.map(function(d) {return d.name})).range([height-50,50])
+
+  var xAxis2 = d3.axisBottom(xScale2).ticks(10);
+  var yAxis2 = d3.axisLeft(yScale2).ticks(10);
+
+  // draw the axis
+  svg2.append("g").attr("class", "x axis2").attr("transform", "translate(50," + (height-50) + ")").call(xAxis2);
+  svg2.append("g").attr("class", "y axis2").attr("transform", "translate(" + 50 + ",0)").call(yAxis2)
+      .selectAll("text").style("text-anchor", "end").attr("dx", "-.8em").attr("dy", "-.55em");
+
+  // add bar chart
+  svg2.selectAll("bar").data(thisData5).enter().append("rect").attr("class", "bar2")
+      .attr("x", 52).attr("y", function(d) {return +yScale2(d.name)})
+      .attr("width", function(d) {return xScale2(d.users_rated)}).attr("height", height/7-20)
+      .attr("fill", "pink")
+}
+
+function clearBar() {
+  d3.select(this).attr("r", r)
+  svg2.selectAll("*").remove()
+}
+
+})
+
+</script>
+
+</body>

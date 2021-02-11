@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en"></html>
+<!-- run: http-server & -->
+
+<head>
+   <meta charset="utf-8">
+   <title>Running Total of TMDb Movies by Year</title>
+   <!-- <script type="text/javascript" src="lib/d3/d3.min.js"></script> -->
+   <style type="text/css">
+      /* css style rules here */		
+   </style>
+</head>
+
+<body>
+   <script src="lib/d3/d3.min.js"></script>
+   <script src="lib/d3-dsv/d3-dsv.min.js"></script>
+   <script src="lib/d3-fetch/d3-fetch.min.js"></script>
+        
+   <script type="text/javascript">
+
+      var w = 1000;
+      var h = 500;
+      var padding = 3;
+      var margin = {
+            top: 50,
+            right: 20,
+            bottom: 50,
+            left: 70
+      };
+
+      //load the data from q3.csv
+      var dataset = [];
+      var running_total = []
+      var pathToCsv = "q3.csv";
+        
+      d3.dsv(",", pathToCsv, function (data) {
+         dataset.push(data);
+         running_total.push(parseInt(data.running_total,10));    
+      }).then(function(data){
+         console.log(dataset);
+         console.log(running_total);
+         var max_running_total = d3.max(running_total);
+         var max_year = dataset[dataset.length - 1].year;
+         var min_year = dataset[0].year;
+         
+         var xScale = d3.scaleTime()
+                        .domain([new Date("January 1, "+min_year), new Date("January 1, "+max_year)])
+                        .range([margin.left, w - margin.right]);
+         
+         var yScale = d3.scaleLinear()
+                        .domain([0, max_running_total])
+                        .range([h - margin.bottom, margin.top]);
+
+         var hScale = d3.scaleLinear()
+                        .domain([0, max_running_total])
+                        .range([0, h - margin.bottom - margin.top]);               
+         
+         var xAxis = d3.axisBottom(xScale)
+                        .ticks(d3.timeYear.every(10));
+                        
+         var yAxis = d3.axisLeft(yScale);
+
+         var svg = d3.select("body")
+                     .append("svg")
+                     .attr("width", w)
+                     .attr("height", h)
+
+         svg.selectAll("rect")
+            .data(dataset)
+            .enter()
+            .append("rect")
+            .attr("x", function(d) {
+               return xScale(new Date(d.year));
+            })
+            .attr("y", function(d) {
+               return yScale(d.running_total);
+            })
+            .attr("width", w / dataset.length - padding)
+            .attr("height", function(d) {
+               return hScale(d.running_total);
+            })
+            .attr("fill", "teal");
+
+         svg.append("g")
+            .attr("class", "axis")
+            .attr("transform", "translate(1, " + (h-margin.bottom) + ")")
+            .call(xAxis);
+
+         // text label for the x axis
+         svg.append("text")
+               // .attr("transform", "rotate(-90)")
+               .attr("x", w/2)
+               .attr("y",490)
+               // .attr("dy", "1em")
+               .style("text-anchor", "middle")
+               .text("Year");
+
+         svg.append("g")
+            .attr("class", "axis")
+            .attr("transform", "translate(" + margin.left + ", 0)")
+            .call(yAxis);
+
+         // text label for the y axis
+         svg.append("text")
+            // .attr("class", "y label")
+            .attr("text-anchor", "middle")
+            .attr("y", 6)
+            .attr("x",0 - (h / 2))
+            .attr("dy", ".75em")
+            .attr("transform", "rotate(-90)")
+            .text("Running Total");
+
+         svg.append("text")
+            .attr("x", w/2)
+            .attr("y", 40)
+            .style("text-anchor","middle")
+            .attr("font-size", "24px")
+            .text("Running Total of TMDb Movies by Year");
+
+         svg.append("text")
+            .attr("x", w)
+            .attr("y", 490)
+            .style("text-anchor","end")
+            .text("Zliu723");  
+
+         }).catch(function (error) {
+      console.log(error);
+      });           
+   </script>
+</body>
+</html>

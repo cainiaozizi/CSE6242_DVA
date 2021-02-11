@@ -1,0 +1,1 @@
+When the data vary in a large degree and within each class it has a large difference, it is better to use the nonlinear scale instead of linear scale. Log and sqrt scales can minimize the diversity which gives people more insights on the relationship among the data. 

@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+
+<style type="text/css">
+/* 13. Basic Styling with CSS */
+
+/* Style the lines by removing the fill and applying a stroke */
+.line {
+    fill: none;
+    stroke: #ffab00;
+    stroke-width: 3;
+}  
+.overlay {
+  fill: none;
+  pointer-events: all;
+}
+
+.rect {
+
+fill: #FFC300;
+stroke: none;
+stroke-width: 1.5px;
+}
+
+/* Style the dots by assigning a fill and stroke */
+.dot {
+    fill: #ffab00;
+    stroke: #fff;
+}
+  
+  .focus circle {
+  fill: none;
+  stroke: steelblue;
+}
+
+</style>
+<!-- Body tag is where we will append our SVG and SVG objects-->
+<body>
+</body>
+
+<!-- Load in the d3 library -->
+<script src="https://d3js.org/d3.v5.min.js"></script>
+<script>
+
+var dataset = []
+var parseTime = d3.timeParse("%Y-%m-%d");
+var formatTime = d3.timeFormat("%b%y");
+var colors = ['#FF4500','#FF7F50','#FFA500','#FFD700','#FFE4B5','#FFEBCD','#FF1493','#F08080']
+var types = ["Catan=count", "Dominion=count", "Codenames=count", "Terraforming Mars=count", "Gloomhaven=count", "Magic: The Gathering=count","Dixit=count","Monopoly=count"]
+var types_name = ["Catan", "Dominion", "Codenames", "Terraforming Mars", "Gloomhaven", "Magic: The Gathering","Dixit","Monopoly"]
+
+// 1. Load the data
+d3.csv("boardgame_ratings.csv").then(function (data) {
+
+    data.forEach(function(d) {
+    d["date"] = parseTime(d["date"]);
+    d["Catan=count"] = + d["Catan=count"];
+    d["Dominion=count"] = + d["Dominion=count"];
+    d["Codenames=count"] = + d["Codenames=count"];
+    d["Terraforming Mars=count"] = + d["Terraforming Mars=count"];
+    d["Magic: The Gathering=count"] = + d["Magic: The Gathering=count"];
+    d["Gloomhaven=count"] = + d["Gloomhaven=count"];
+    d["Dixit=count"] = + d["Dixit=count"];
+    d["Monopoly=count"] = + d["Monopoly=count"];
+  })
+
+    // 2. Use the margin convention practice
+    const margin = {top: 50, right: 180, bottom: 50, left: 50}; 
+    const width = window.innerWidth - margin.left - margin.right;
+    const height = window.innerHeight - margin.top - margin.bottom;
+    const svg = d3.select("svg")
+        .attr("viewBox", [0, 0, width, height]);
+
+    // 3.a Define scale
+    var xScale = d3.scaleTime()
+        .domain([d3.min(data, function(d) {return d["date"]; }),d3.max(data, function(d) {return d["date"]; })])
+        .range([100, width-100]); 
+    
+    //Modify for q3_c
+    var yScale = d3.scaleSqrt()
+            .domain([1, d3.max(data, d => parseInt(d["Catan=count"]))]).nice()
+            .range([height - margin.bottom, margin.top])
+ 
+            
+
+    // 3.b Define axis
+
+    var xAxis = d3.axisBottom(xScale).tickFormat(formatTime)
+                .tickValues(d3.timeMonth.every(3).range(d3.min(data, function(d) { return d["date"]; }),
+                d3.max(data, function(d) { return d["date"]; })));
+
+    var yAxis = d3.axisLeft(yScale).ticks(10);
+
+    // 4 Define lines
+    var line1 = d3.line()
+        .x(function(d) { return xScale(d["date"]); }) 
+        .y(function(d) { return yScale(d["Catan=count"]); })  
+        .curve(d3.curveMonotoneX) 
+
+    var line2 = d3.line()
+        .x(function(d) { return xScale(d["date"]); }) 
+        .y(function(d) { return yScale(d["Dominion=count"]); })  
+        .curve(d3.curveMonotoneX) 
+
+    var line3 = d3.line()
+        .x(function(d) { return xScale(d["date"]); }) 
+        .y(function(d) { return yScale(d["Codenames=count"]); })  
+        .curve(d3.curveMonotoneX) 
+
+    var line4 = d3.line()
+        .x(function(d) { return xScale(d["date"]); }) 
+        .y(function(d) { return yScale(d["Terraforming Mars=count"]); })  
+        .curve(d3.curveMonotoneX)
+
+    var line5 = d3.line()
+        .x(function(d) { return xScale(d["date"]); }) 
+        .y(function(d) { return yScale(d["Gloomhaven=count"]); })  
+        .curve(d3.curveMonotoneX) 
+
+    var line6 = d3.line()
+        .x(function(d) { return xScale(d["date"]); }) 
+        .y(function(d) { return yScale(d["Magic: The Gathering=count"]); })  
+        .curve(d3.curveMonotoneX)
+
+    var line7 = d3.line()
+        .x(function(d) { return xScale(d["date"]); }) 
+        .y(function(d) { return yScale(d["Dixit=count"]); })  
+        .curve(d3.curveMonotoneX) 
+
+    var line8 = d3.line()
+        .x(function(d) { return xScale(d["date"]); }) 
+        .y(function(d) { return yScale(d["Monopoly=count"]); })  
+        .curve(d3.curveMonotoneX)
+        
+    
+        
+    // figure 3
+    // scale x and y axis using sqrt
+
+
+
+    var svg2 = d3.select("body").append("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom)
+        .append("g")
+        .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+   // add title
+    svg2.append("text")
+        .attr("x", width/ 2 )
+        .attr("y", 0)
+        .style("font-weight","bold")
+        .style("text-anchor", "middle")
+        .style("font-size", "25px")
+        .text("Number of Ratings 2016-2020 (Square root Scale)");
+    
+    // add axis
+    svg2.append("g").attr("class", "x axis").attr("transform", "translate(0," + (height-50) + ")").call(xAxis);
+    svg2.append("g").attr("class", "y axis").attr("transform", "translate(" + 50 + ",0)").call(yAxis); 
+
+    // add axis labels
+    svg2.append("text").attr("x", -height/2).attr("y", 0).attr("transform", "rotate(-90)")
+        .style("font-size", "20px").style("font-weight","bold")
+        .style("text-anchor", "middle").text("Num of Ratings");
+    
+    svg2.append("text").attr("x", width/2).attr("y", height)
+        .style("font-size", "20px").style("font-weight","bold")
+        .style("text-anchor", "middle").text("Month");
+    
+    // add line
+    svg2.append("path").datum(data).attr("class", "line").style("stroke", '#FF4500').attr("d", line1);
+    svg2.append("path").datum(data).attr("class", "line").style("stroke", '#FF7F50').attr("d", line2); 
+    svg2.append("path").datum(data).attr("class", "line").style("stroke", '#FFA500').attr("d", line3); 
+    svg2.append("path").datum(data).attr("class", "line").style("stroke", '#FFD700').attr("d", line4); 
+    svg2.append("path").datum(data).attr("class", "line").style("stroke", '#FFE4B5').attr("d", line5); 
+    svg2.append("path").datum(data).attr("class", "line").style("stroke", '#FFEBCD').attr("d", line6); 
+    svg2.append("path").datum(data).attr("class", "line").style("stroke", '#FF1493').attr("d", line7); 
+    svg2.append("path").datum(data).attr("class", "line").style("stroke", '#F08080').attr("d", line8);  
+
+    // add the label for the lines
+    for(i = 0; i < types.length; ++i){
+        svg2.append("text")
+            .attr("transform", "translate(" + (width-40) + "," + yScale(data[data.length-1][types[i]]) + ")")
+            .attr("dy", ".35em")
+            .attr("text-anchor", "start")
+            .style("fill", colors[i])
+            .text(types_name[i]);        
+    }
+    
+    // need to plot the circles for the rating. 
+    // first create a new array to store the ranks for every three months
+    temparray =[]
+    for (i=0; i< data.length; i=i+3) {
+        temparray.push(data[i]);
+    }
+    // console.log(temparray);
+    // second plot the circles
+    var types_circle = ["Catan=count", "Codenames=count", "Terraforming Mars=count", "Gloomhaven=count"]
+    var types_rank = ["Catan=rank", "Codenames=rank", "Terraforming Mars=rank", "Gloomhaven=rank"]
+    for(i = 0; i < types_circle.length; i++){
+        svg2.selectAll("circle"+i).data(temparray).enter().append("circle")  
+            .attr("cx", function(d) {return xScale(d["date"])})
+            .attr("cy", function(d) {return yScale(d[types_circle[i]])})
+            .attr("r", 10)
+            .attr("fill", colors[i]);
+
+    // Add the labels for ratings
+        svg2.selectAll("text"+i).data(temparray).enter().append("text")
+               .text(function(d){
+                    return d[types_rank[i]];})
+			   .attr("x", function(d) {
+			   		return xScale(d["date"]);
+			   })
+			   .attr("y", function(d) {
+			   		return yScale(d[types_circle[i]]);
+               })
+               .attr("text-anchor", "middle")
+			   .attr("font-family", "sans-serif")
+			   .attr("font-size", "11px")
+               .attr("fill", "black")
+               .style("font-weight","bold");
+    }
+    // Add the legend
+    svg2.append("circle")
+        .attr("cx", width+20)
+        .attr("cy", height -margin.top)
+        .attr("r", 20)
+        .attr("fill", "pink");
+
+    svg2.append("text")
+    .attr("x", width-50)
+    .attr("y", height-margin.top+40)
+    .text("represent board of game ranking")
+    .attr("text-anchor", "start")
+    .style("font-weight","bold")
+    .style("font-size", "12px")
+})
+
+
+
+</script>
